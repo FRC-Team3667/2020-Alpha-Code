@@ -13,23 +13,80 @@ import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 
-import com.kauailabs.navx.frc.AHRS;
-
 /**
  * Add your docs here.
  */
 public class DriveSystem {
     private static class Auton {
+        private static class pseuJoy extends Joystick {
+            private double ax0;
+            private double ax1;
+            private double ax4;
+
+            public pseuJoy()
+            {
+                super(50);
+                ax0 = 0;
+                ax1 = 0;
+                ax4 = 0;
+            }
+
+            public void setAxis(int i, int val)
+            {
+                switch(i)
+                {
+                    case 0:
+                        ax0 = val;
+                        break;
+
+                    case 1:
+                        ax1 = val;
+                        break;
+
+                    case 4:
+                        ax4 = val;
+                        break;
+                }
+            }
+
+            @Override
+            public double getRawAxis(int i)
+            {
+                switch(i)
+                {
+                    case 0:
+                        return ax0;
+
+                    case 1:
+                        return ax1;
+
+                    case 4:
+                        return ax4;
+
+                    default:
+                        return 0.0;
+                }
+            }
+        }
+
         // private static final int L_DEPTH = 0;
         // private static final int M_DEPTH = 1;
         // private static final int H_DEPTH = 2;
 
         private DriveSystem d;
+        private pseuJoy j;
+        private boolean moving;
+        private boolean turning;
+        private double angle1;
+        private double angle2;
         // private int stage;
 
         public Auton(DriveSystem d)
         {
             this.d = d;
+            j = new pseuJoy();
+            moving = false;
+            turning = false;
             // stage = 0;
         }
 
@@ -58,12 +115,26 @@ public class DriveSystem {
 
         private void move(int dist)
         {
+            if(!moving)
+            {
+                //initialization operations
 
+            }
         }
 
         private void turn(int angle)
         {
-
+            if(!turning)
+            {
+                //initialization operations
+                angle1 = d.nav.getAngle();
+                angle2 = angle1 + angle;
+                turning = true;
+            }
+            if(angle1 > angle2)
+            {
+                
+            }
         }
     }
 
@@ -86,7 +157,7 @@ public class DriveSystem {
     private WPI_VictorSPX  rearLeftMotor;
     private MecanumDrive _mDrive;
     private DifferentialDrive _aDrive;
-    private AHRS navX;
+    private NavX nav;
     private Auton auto;
 
     public DriveSystem(boolean mecanum)
@@ -105,7 +176,7 @@ public class DriveSystem {
             _aDrive = new DifferentialDrive(new SpeedControllerGroup(new WPI_VictorSPX(13), new WPI_VictorSPX(10)),
             new SpeedControllerGroup(new WPI_VictorSPX(12), new WPI_VictorSPX(11)));
         }
-        navX = new AHRS();
+        nav = new NavX();
         auto = new Auton(this);
     }
 

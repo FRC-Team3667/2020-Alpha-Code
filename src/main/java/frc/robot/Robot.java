@@ -15,6 +15,8 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import com.kauailabs.navx.frc.AHRS;
+
 /**
  * The VM is configured to automatically run this class, and to call the
  * functions corresponding to each mode, as described in the TimedRobot
@@ -77,11 +79,7 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotPeriodic() {
-    //Time-based auton
-    // driveS.autoDrive(time);
-
-    //possibly feed angle and depth into autoDrive
-    driveS.autoDrive();
+    
   }
 
   /**
@@ -116,6 +114,12 @@ public class Robot extends TimedRobot {
         // Put default auto code here
         break;
     }
+    //Time-based auton
+    // driveS.autoDrive(time);
+
+    //possibly feed angle and depth into autoDrive
+    
+    driveS.autoDrive();
   }
 
   /**
