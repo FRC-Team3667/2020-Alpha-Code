@@ -7,11 +7,16 @@
 
 package frc.robot;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
+
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * Add your docs here.
@@ -19,6 +24,12 @@ import edu.wpi.first.wpilibj.SpeedControllerGroup;
 public class DriveSystem {
     private static class Auton {
         private static class pseuJoy extends Joystick {
+            public static final int MOVE_FWD_FULL_SPD = -1;
+            public static final int STRAFE_FULL_SPD = 1;
+            public static final double MOVE_SLOW_COEF = .2;
+            public static final double TURN_FULL_SPD = .8;
+            public static final double TURN_SLOW_SPD = .2;
+
             private double ax0;
             private double ax1;
             private double ax4;
@@ -31,7 +42,12 @@ public class DriveSystem {
                 ax4 = 0;
             }
 
-            public void setAxis(int i, int val)
+            public void addToAxis(int i, double val)
+            {
+                setAxis(i, getRawAxis(i) + val);
+            }
+
+            public void setAxis(int i, double val)
             {
                 switch(i)
                 {
@@ -73,21 +89,35 @@ public class DriveSystem {
         // private static final int M_DEPTH = 1;
         // private static final int H_DEPTH = 2;
 
+        /*Constants for array of booleans describing
+        whether various autonomous driving functions
+        are active */
+        private static final int ACTVE_LENGTH = 3;
+        private static final int MOVING_FORWARD = 0;
+        private static final int TURNING = 1;
+        private static final int STRAFING = 2;
+
+        //Miscellaneous constants
+        private static final int TIME_SAFE = 500;
+        private static final int ANGLE_SAFE = 10;
+
         private DriveSystem d;
         private pseuJoy j;
-        private boolean moving;
-        private boolean turning;
-        private double angle1;
-        private double angle2;
-        // private int stage;
+        private Timer t;
+        private boolean[] active;
+        private double curAngle;
+        private double targetAngle;
+        private int stage;
 
         public Auton(DriveSystem d)
         {
             this.d = d;
             j = new pseuJoy();
-            moving = false;
-            turning = false;
-            // stage = 0;
+            t = new Timer();
+            active = new boolean[ACTVE_LENGTH];
+            curAngle = 0;
+            targetAngle = 0;
+            stage = 0;
         }
 
         //Time-based auton
@@ -110,30 +140,125 @@ public class DriveSystem {
         //experimental drive
         public void drive()
         {
+            switch(stage)
+            {
+                case 0:
+                    turn(45);
+                    break;
 
+                case 1:
+                    move(pseuJoy.MOVE_FWD_FULL_SPD, pseuJoy.MOVE_SLOW_COEF * pseuJoy.MOVE_FWD_FULL_SPD, 5);
+                    break;
+
+                case 2:
+                    strafe(pseuJoy.STRAFE_FULL_SPD, pseuJoy.MOVE_SLOW_COEF * pseuJoy.STRAFE_FULL_SPD, 5);
+                    break;
+            }
+            d.drive(j);
+            SmartDashboard.putNumber("Axis 0:", j.getRawAxis(0));
+            SmartDashboard.putNumber("Axis 1:", j.getRawAxis(1));
+            SmartDashboard.putNumber("Axis 4:", j.getRawAxis(4));
         }
 
-        private void move(int dist)
+        private void move(double speed, double slowS, double sec)
         {
-            if(!moving)
-            {
-                //initialization operations
+            moveAdv(MOVING_FORWARD, 1, speed, slowS, sec);
+        }
 
+        private void strafe(double speed, double slowS, double sec)
+        {
+            if(d.isMecanum())
+            {
+                moveAdv(STRAFING, 0, speed, slowS, sec);
             }
         }
 
-        private void turn(int angle)
+        private void moveAdv(int boolInd, int axis, double speed, double slowS, double sec)
         {
-            if(!turning)
+            if(!active[boolInd])
+            {
+                //*initialization operations*
+                j.setAxis(axis, speed);
+                active[boolInd] = true;
+                t.schedule(new TimerTask(){
+                  @Override
+                  public void run()
+                  {
+                    j.setAxis(axis, slowS);
+                  }
+                }, (long) (sec * 1000) - TIME_SAFE);
+                t.schedule(new TimerTask(){
+                    @Override
+                    public void run()
+                    {
+                      j.setAxis(axis, 0);
+                      active[boolInd] = false;
+                      stage++;
+                    }
+                  }, (long) (sec * 1000));
+            }
+        }
+
+        private void turn(double angle)
+        {
+            if(!active[TURNING])
             {
                 //initialization operations
-                angle1 = d.nav.getAngle();
-                angle2 = angle1 + angle;
-                turning = true;
+                curAngle = d.nav.getAngle();
+                targetAngle = curAngle + angle;
+                active[TURNING] = true;
+                if(curAngle - ANGLE_SAFE > targetAngle)
+                {
+                    j.setAxis(4, -pseuJoy.TURN_FULL_SPD);
+                }
+                else if(curAngle + ANGLE_SAFE < targetAngle)
+                {
+                    j.setAxis(4, pseuJoy.TURN_FULL_SPD);
+                }
+                else if(curAngle > targetAngle)
+                {
+                    j.setAxis(4, -pseuJoy.TURN_SLOW_SPD);
+                }
+                else if(curAngle < targetAngle)
+                {
+                    j.setAxis(4, pseuJoy.TURN_SLOW_SPD);
+                }
+                else
+                {
+                    active[TURNING] = false;
+                }
             }
-            if(angle1 > angle2)
+            else
             {
-                
+                curAngle = d.nav.getAngle();
+                if(j.getRawAxis(4) > 0) 
+                {
+                    if(curAngle >= targetAngle)
+                    {
+                        j.setAxis(4, 0);
+                        active[TURNING] = false;
+                        //advance the stage:
+                        stage++;
+                    }
+                    if(j.getRawAxis(4) > pseuJoy.TURN_SLOW_SPD && curAngle + ANGLE_SAFE >= targetAngle)
+                    {
+                        j.setAxis(4, pseuJoy.TURN_SLOW_SPD);
+                    }
+                }
+                else if(j.getRawAxis(4) != 0)
+                {
+                    if(curAngle <= targetAngle)
+                    {
+                        j.setAxis(4, 0);
+                        active[TURNING] = false;
+                        //advance the stage:
+                        stage++;
+                    }
+                    if(j.getRawAxis(4) < -pseuJoy.TURN_SLOW_SPD && curAngle - ANGLE_SAFE <= targetAngle)
+                    {
+                        j.setAxis(4, pseuJoy.TURN_SLOW_SPD);
+                    }
+                }
             }
         }
     }

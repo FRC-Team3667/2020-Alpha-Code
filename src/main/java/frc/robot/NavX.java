@@ -15,7 +15,7 @@ import com.kauailabs.navx.frc.AHRS;
 public class NavX extends AHRS{
     public static enum Orient
     {
-        STANDARD("X+ left, Y+ back, flat");
+        STANDARD("X+ left, Y+ back, Angle+ clockwise, flat");
 
         private final String desc;
 
