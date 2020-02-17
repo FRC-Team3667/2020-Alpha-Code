@@ -32,13 +32,15 @@ public class Robot extends TimedRobot {
   //int time;
 
   //drive system
-  DriveSystem driveS;
+  private DriveSystem driveS;
 
   //color sensor
-  ColorSensor colorS;
+  private ColorSensor colorS;
 
   //joysticks
-  Joystick joy1;
+
+  //Fix this later. joy1 was changed to public and static for testing purposes only
+  public static Joystick joy1;
 
   /**
    * This function is run when the robot is first started up and should be

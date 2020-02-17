@@ -24,15 +24,69 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 public class DriveSystem {
     private static class Auton {
         private static class pseuJoy extends Joystick {
+            private static enum TurnE
+            {
+                TURN, MOVE_FWD_TRUE, STRAFE_TRUE;
+
+                private static TurnE get(int i)
+                {
+                    switch(i)
+                    {
+                        case MOVING_FORWARD:
+                            return MOVE_FWD_TRUE;
+
+                        case STRAFING:  
+                            return STRAFE_TRUE;
+                    }
+                    return TURN;
+                }
+            }
+
             public static final int MOVE_FWD_FULL_SPD = -1;
             public static final int STRAFE_FULL_SPD = 1;
-            public static final double MOVE_SLOW_COEF = .2;
-            public static final double TURN_FULL_SPD = .8;
-            public static final double TURN_SLOW_SPD = .2;
+            public static final double MOVE_FWD_SLOW_SPD = -.15;
+            public static final double STRAFE_SLOW_SPD = .3;
+            public static final double TURN_FULL_SPD = .4;
+            public static final double TURN_SLOW_SPD = .3;
+            public static final double TRUE_MOVE_FWD_SPD = .02;
+            public static final double TRUE_STRAFE_SPD = .05;
+            private static final double TRUING_FAST_COEF = 3;
 
             private double ax0;
             private double ax1;
             private double ax4;
+
+            public static double getFast(TurnE t)
+            {
+                switch(t)
+                {
+                    case TURN:
+                        return TURN_FULL_SPD;
+
+                    case MOVE_FWD_TRUE:
+                        return TRUE_MOVE_FWD_SPD * TRUING_FAST_COEF;
+
+                    case STRAFE_TRUE: 
+                        return TRUE_STRAFE_SPD * TRUING_FAST_COEF;
+                }
+                return 0;
+            }
+
+            public static double getSlow(TurnE t)
+            {
+                switch(t)
+                {
+                    case TURN:
+                        return TURN_SLOW_SPD;
+
+                    case MOVE_FWD_TRUE:
+                        return TRUE_MOVE_FWD_SPD;
+
+                    case STRAFE_TRUE: 
+                        return TRUE_STRAFE_SPD;
+                }
+                return 0;
+            }
 
             public pseuJoy()
             {
@@ -40,6 +94,11 @@ public class DriveSystem {
                 ax0 = 0;
                 ax1 = 0;
                 ax4 = 0;
+            }
+
+            public String toString()
+            {
+                return "Axis 0: " + ax0 + "\nAxis 1: " + ax1 + "\nAxis 4: " + ax4;
             }
 
             public void addToAxis(int i, double val)
@@ -92,19 +151,20 @@ public class DriveSystem {
         /*Constants for array of booleans describing
         whether various autonomous driving functions
         are active */
-        private static final int ACTVE_LENGTH = 3;
+        private static final int ACTIVE_LENGTH = 3;
         private static final int MOVING_FORWARD = 0;
         private static final int TURNING = 1;
         private static final int STRAFING = 2;
 
         //Miscellaneous constants
         private static final int TIME_SAFE = 500;
-        private static final int ANGLE_SAFE = 10;
+        private static final int ANGLE_SAFE = 30;
 
         private DriveSystem d;
         private pseuJoy j;
         private Timer t;
         private boolean[] active;
+        private double trueHead;
         private double curAngle;
         private double targetAngle;
         private int stage;
@@ -114,7 +174,8 @@ public class DriveSystem {
             this.d = d;
             j = new pseuJoy();
             t = new Timer();
-            active = new boolean[ACTVE_LENGTH];
+            active = new boolean[ACTIVE_LENGTH];
+            trueHead = 0;
             curAngle = 0;
             targetAngle = 0;
             stage = 0;
@@ -140,45 +201,74 @@ public class DriveSystem {
         //experimental drive
         public void drive()
         {
+            boolean autoD = true;
             switch(stage)
             {
                 case 0:
-                    turn(45);
+                    move(pseuJoy.MOVE_FWD_FULL_SPD * .5, pseuJoy.MOVE_FWD_SLOW_SPD, 2);
                     break;
 
                 case 1:
-                    move(pseuJoy.MOVE_FWD_FULL_SPD, pseuJoy.MOVE_SLOW_COEF * pseuJoy.MOVE_FWD_FULL_SPD, 5);
+                    turn(90);
                     break;
 
                 case 2:
-                    strafe(pseuJoy.STRAFE_FULL_SPD, pseuJoy.MOVE_SLOW_COEF * pseuJoy.STRAFE_FULL_SPD, 5);
+                    strafe(pseuJoy.STRAFE_FULL_SPD * .5, pseuJoy.STRAFE_SLOW_SPD, 3.4);
+                    break;
+                    
+                case 3:
+                    turn(-90);
+                    break;
+
+                case 4:
+                    autoD = false;
                     break;
             }
-            d.drive(j);
+            if(autoD)
+            {
+                d.drive(j);
+            }
+            else
+            {
+                d.drive(Robot.joy1);
+            }
             SmartDashboard.putNumber("Axis 0:", j.getRawAxis(0));
             SmartDashboard.putNumber("Axis 1:", j.getRawAxis(1));
             SmartDashboard.putNumber("Axis 4:", j.getRawAxis(4));
+            SmartDashboard.putNumber("Current Angle: ", d.nav.getAngle());
+            SmartDashboard.putNumber("Target Angle: ", targetAngle);
         }
 
         private void move(double speed, double slowS, double sec)
         {
-            moveAdv(MOVING_FORWARD, 1, speed, slowS, sec);
+            moveArc(speed, slowS, sec, 0);
+        }
+
+        private void moveArc(double speed, double slowS, double sec, double angle)
+        {
+            moveAdv(MOVING_FORWARD, 1, speed, slowS, sec, angle);
         }
 
         private void strafe(double speed, double slowS, double sec)
         {
+            strafeArc(speed, slowS, sec, 0);
+        }
+
+        private void strafeArc(double speed, double slowS, double sec, double angle)
+        {
             if(d.isMecanum())
             {
-                moveAdv(STRAFING, 0, speed, slowS, sec);
+                moveAdv(STRAFING, 0, speed, slowS, sec, angle);
             }
         }
 
-        private void moveAdv(int boolInd, int axis, double speed, double slowS, double sec)
+        private void moveAdv(int boolInd, int axis, double speed, double slowS, double sec, double angle)
         {
             if(!active[boolInd])
             {
                 //*initialization operations*
                 j.setAxis(axis, speed);
+                trueHead = d.nav.getAngle();
                 active[boolInd] = true;
                 t.schedule(new TimerTask(){
                   @Override
@@ -191,15 +281,26 @@ public class DriveSystem {
                     @Override
                     public void run()
                     {
-                      j.setAxis(axis, 0);
-                      active[boolInd] = false;
-                      stage++;
+                        active[boolInd] = false;
+                        active[TURNING] = false;
+                        j.setAxis(axis, 0);
+                        j.setAxis(4, 0);
+                        stage++;
                     }
                   }, (long) (sec * 1000));
+            }
+            if(active[boolInd])
+            {
+                turn(trueHead - d.nav.getAngle() + angle, false, pseuJoy.TurnE.get(boolInd));
             }
         }
 
         private void turn(double angle)
+        {
+            turn(angle, true, pseuJoy.TurnE.TURN);
+        }
+
+        private void turn(double angle, boolean advance, pseuJoy.TurnE type)
         {
             if(!active[TURNING])
             {
@@ -209,23 +310,27 @@ public class DriveSystem {
                 active[TURNING] = true;
                 if(curAngle - ANGLE_SAFE > targetAngle)
                 {
-                    j.setAxis(4, -pseuJoy.TURN_FULL_SPD);
+                    j.setAxis(4, -pseuJoy.getFast(type));
                 }
                 else if(curAngle + ANGLE_SAFE < targetAngle)
                 {
-                    j.setAxis(4, pseuJoy.TURN_FULL_SPD);
+                    j.setAxis(4, pseuJoy.getFast(type));
                 }
                 else if(curAngle > targetAngle)
                 {
-                    j.setAxis(4, -pseuJoy.TURN_SLOW_SPD);
+                    j.setAxis(4, -pseuJoy.getSlow(type));
                 }
                 else if(curAngle < targetAngle)
                 {
-                    j.setAxis(4, pseuJoy.TURN_SLOW_SPD);
+                    j.setAxis(4, pseuJoy.getSlow(type));
                 }
                 else
                 {
                     active[TURNING] = false;
+                    if(advance)
+                    {
+                        stage++;
+                    }
                 }
             }
             else
@@ -235,28 +340,34 @@ public class DriveSystem {
                 {
                     if(curAngle >= targetAngle)
                     {
-                        j.setAxis(4, 0);
                         active[TURNING] = false;
+                        j.setAxis(4, 0);
                         //advance the stage:
-                        stage++;
+                        if(advance)
+                        {
+                            stage++;
+                        }
                     }
-                    if(j.getRawAxis(4) > pseuJoy.TURN_SLOW_SPD && curAngle + ANGLE_SAFE >= targetAngle)
+                    if(j.getRawAxis(4) > pseuJoy.getSlow(type) && curAngle + ANGLE_SAFE >= targetAngle)
                     {
-                        j.setAxis(4, pseuJoy.TURN_SLOW_SPD);
+                        j.setAxis(4, pseuJoy.getSlow(type));
                     }
                 }
                 else if(j.getRawAxis(4) != 0)
                 {
                     if(curAngle <= targetAngle)
                     {
-                        j.setAxis(4, 0);
                         active[TURNING] = false;
+                        j.setAxis(4, 0);
                         //advance the stage:
-                        stage++;
+                        if(advance)
+                        {
+                            stage++;
+                        }
                     }
-                    if(j.getRawAxis(4) < -pseuJoy.TURN_SLOW_SPD && curAngle - ANGLE_SAFE <= targetAngle)
+                    if(j.getRawAxis(4) < -pseuJoy.getSlow(type) && curAngle - ANGLE_SAFE <= targetAngle)
                     {
-                        j.setAxis(4, pseuJoy.TURN_SLOW_SPD);
+                        j.setAxis(4, -pseuJoy.getSlow(type));
                     }
                 }
             }

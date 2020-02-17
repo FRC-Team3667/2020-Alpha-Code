@@ -15,7 +15,7 @@ import edu.wpi.first.wpilibj.util.Color;
 /**
  * Add your docs here.
  */
-public class ColorSensor {
+public class ColorSensor extends ColorSensorV3{
     public static enum EColor {
         RED, YELLOW, BLUE, GREEN, UNKNOWN;
 
@@ -34,14 +34,12 @@ public class ColorSensor {
         }
     }
 
-    private ColorSensorV3 cs;
-
     public ColorSensor() {
-        cs = new ColorSensorV3(I2C.Port.kOnboard);
+        super(I2C.Port.kOnboard);
     }
 
-    public EColor getRawColor() {
-        Color detected = cs.getColor();
+    public EColor getColorDetected() {
+        Color detected = getColor();
         if (detected.red > .25 && detected.blue < .25) {
             if (detected.green < .48) {
                 return EColor.RED;
@@ -60,7 +58,7 @@ public class ColorSensor {
     }
 
     public EColor getColorOff() {
-        return offset(getRawColor());
+        return offset(getColorDetected());
     }
 
     public static EColor offset(EColor color) {
