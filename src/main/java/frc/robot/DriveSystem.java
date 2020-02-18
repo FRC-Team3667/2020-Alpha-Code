@@ -144,6 +144,7 @@ public class DriveSystem {
             }
         }
 
+        //Constants for various depths of future autoDrive function
         // private static final int L_DEPTH = 0;
         // private static final int M_DEPTH = 1;
         // private static final int H_DEPTH = 2;
@@ -181,16 +182,6 @@ public class DriveSystem {
             stage = 0;
         }
 
-        //Time-based auton
-
-        // public void drive(int t)
-        // {
-        //     if(t < 5)
-        //     {
-        //         d.drive(new pseuJoy()
-        //     }
-        // }
-
         //Stage-based auton
         //depth and angle-based drive
         // public void drive(int d, int a)
@@ -201,7 +192,6 @@ public class DriveSystem {
         //experimental drive
         public void drive()
         {
-            boolean autoD = true;
             switch(stage)
             {
                 case 0:
@@ -219,19 +209,8 @@ public class DriveSystem {
                 case 3:
                     turn(-90);
                     break;
-
-                case 4:
-                    autoD = false;
-                    break;
             }
-            if(autoD)
-            {
-                d.drive(j);
-            }
-            else
-            {
-                d.drive(Robot.joy1);
-            }
+            d.drive(j);
             SmartDashboard.putNumber("Axis 0:", j.getRawAxis(0));
             SmartDashboard.putNumber("Axis 1:", j.getRawAxis(1));
             SmartDashboard.putNumber("Axis 4:", j.getRawAxis(4));
@@ -374,18 +353,6 @@ public class DriveSystem {
         }
     }
 
-    // private class Auton extends DriveSystem{
-    //     public Auton(DriveSystem d)
-    //     {
-    //         this = d;
-    //     }
-
-    //     public void drive(int t)
-    //     {
-    //         drive(new Joystick(0));
-    //     }
-    // }
-
     private boolean mecanum;
     private WPI_VictorSPX frontLeftMotor;
     private WPI_VictorSPX frontRightMotor;
@@ -415,14 +382,6 @@ public class DriveSystem {
         nav = new NavX();
         auto = new Auton(this);
     }
-
-    //Time-based auton
-
-    // public void autoDrive(int t)
-    // {
-    //     auto.drive(t);
-    // }
-
 
     //autoDrive based on depth and angle
     // public void autoDrive(int depth, int angle)

@@ -7,9 +7,6 @@
 
 package frc.robot;
 
-import java.util.Timer;
-import java.util.TimerTask;
-
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -28,19 +25,16 @@ public class Robot extends TimedRobot {
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-  //timer
-  //int time;
-
-  //drive system
+  //Drive system
   private DriveSystem driveS;
 
-  //color sensor
+  /* *FIX* The ColorSensor object, currently in the Robot
+  class, may need to be in another class in the future.*/
+  //Color sensor
   private ColorSensor colorS;
 
-  //joysticks
-
-  //Fix this later. joy1 was changed to public and static for testing purposes only
-  public static Joystick joy1;
+  //Joysticks
+  private Joystick joy1;
 
   /**
    * This function is run when the robot is first started up and should be
@@ -51,15 +45,6 @@ public class Robot extends TimedRobot {
     m_chooser.setDefaultOption("Default Auto", kDefaultAuto);
     m_chooser.addOption("My Auto", kCustomAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
-    //Time-based Auton
-
-    // new Timer().schedule(new TimerTask(){
-    //   @Override
-    //   public void run()
-    //   {
-    //     time++;
-    //   }
-    // }, 20, 20);
     driveS = new DriveSystem(true);
     colorS = new ColorSensor();
     try
@@ -114,9 +99,6 @@ public class Robot extends TimedRobot {
         // Put default auto code here
         break;
     }
-    //Time-based auton
-    // driveS.autoDrive(time);
-
     //Auton drive function
     //possibly feed angle and depth of expected play into autoDrive function
     driveS.autoDrive();
@@ -127,8 +109,7 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void teleopPeriodic() {
-    // driveS.drive(joy1);
-    driveS.autoDrive();
+    driveS.drive(joy1);
   }
 
   /**
