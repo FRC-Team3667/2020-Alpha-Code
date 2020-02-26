@@ -15,14 +15,33 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
  * Add your docs here.
  */
 public class Operations {
+    //*NOTE*: VictorSPX controllers are smaller than TalonSRX controllers
+
     //motor variables
-    //VictorSPX controllers are smaller than TalonSRX controllers
-    
+    // intakeDep
+    // intake1
+    // intake2
+    // shooter
+    // laser1
+    // laser2
+    // laserS
+    // extend
+    // winch
+    // spin
 
     public Operations()
     {
         //motor variable initialization
-
+        // intakeDep
+        // intake1
+        // intake2
+        // shooter
+        // laser1
+        // laser2
+        // laserS
+        // extend
+        // winch
+        // spin
     }
 
     public void operate(Joystick j)
