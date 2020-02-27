@@ -366,18 +366,22 @@ public class DriveSystem {
     public DriveSystem(boolean mecanum)
     {
         this.mecanum = mecanum;
+        frontLeftMotor = new WPI_VictorSPX(14);
+        frontLeftMotor.setInverted(true);
+        frontRightMotor = new WPI_VictorSPX(13);
+        frontRightMotor.setInverted(true);
+        rearRightMotor = new WPI_VictorSPX(12);
+        rearRightMotor.setInverted(true);
+        rearLeftMotor = new WPI_VictorSPX(11);
+        rearLeftMotor.setInverted(true);
         if(mecanum)
         {
-            frontLeftMotor = new WPI_VictorSPX(13);
-            frontRightMotor = new WPI_VictorSPX(12);
-            rearRightMotor = new WPI_VictorSPX(11);
-            rearLeftMotor = new WPI_VictorSPX(10);
             _mDrive = new MecanumDrive(frontLeftMotor, rearLeftMotor, frontRightMotor, rearRightMotor);
         }
         else
         {
-            _aDrive = new DifferentialDrive(new SpeedControllerGroup(new WPI_VictorSPX(13), new WPI_VictorSPX(10)),
-            new SpeedControllerGroup(new WPI_VictorSPX(12), new WPI_VictorSPX(11)));
+            _aDrive = new DifferentialDrive(new SpeedControllerGroup(frontLeftMotor, rearLeftMotor),
+            new SpeedControllerGroup(frontRightMotor, rearRightMotor));
         }
         nav = new NavX();
         auto = new Auton(this);

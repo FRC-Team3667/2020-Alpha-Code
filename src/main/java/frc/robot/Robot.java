@@ -35,6 +35,10 @@ public class Robot extends TimedRobot {
 
   //Joysticks
   private Joystick joy1;
+  private Joystick joy2;
+
+  //Operations object
+  private Operations op;
 
   /**
    * This function is run when the robot is first started up and should be
@@ -52,6 +56,12 @@ public class Robot extends TimedRobot {
       joy1 = new Joystick(0);
     }
     catch(Exception e){}
+    try
+    {
+      joy1 = new Joystick(1);
+    }
+    catch(Exception e){}
+    op = new Operations();
   }
 
   /**
@@ -110,6 +120,7 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     driveS.drive(joy1);
+    op.operate(joy2);
   }
 
   /**
