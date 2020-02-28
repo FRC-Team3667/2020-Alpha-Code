@@ -9,6 +9,7 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.Joystick;
 import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
+import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import edu.wpi.first.wpilibj.Servo;
@@ -17,8 +18,16 @@ import edu.wpi.first.wpilibj.Servo;
  * Add your docs here.
  */
 public class Operations {
-    //*NOTE*: VictorSPX controllers are smaller than TalonSRX controllers
+    private static final int ACTIVE_LENGTH = 2;
+    private static final int DESCENDING = 0;
+    private static final int ASCENDING = 1;
+    private static final double CLIMB_THRESH = .05;
+    private static final double CLIMB_UP_SPD = .65;
+    private static final double CLIMB_DOWN_SPD = .3;
 
+    private boolean[] active;
+
+    //*NOTE*: VictorSPX controllers are smaller than TalonSRX controllers
     //motor variables
     WPI_TalonSRX intakeDep;
         //positive deploys, negative retracts
@@ -60,6 +69,7 @@ public class Operations {
 
     public Operations()
     {
+        active = new boolean[ACTIVE_LENGTH];
         //motor variable initialization
         intakeDep = new WPI_TalonSRX(21);
         intake1 = new WPI_TalonSRX(22);
@@ -72,6 +82,7 @@ public class Operations {
         // laserS
         extender = new WPI_VictorSPX(41);
         extender.setInverted(true);
+        extender.setNeutralMode(NeutralMode.Brake);
         winch = new WPI_VictorSPX(42);
         spin = new WPI_VictorSPX(51);
         hood = new Servo(0);
@@ -79,8 +90,36 @@ public class Operations {
         winchLock = new Servo(2);
     }
 
-    public void operate(Joystick j)
+    public void operate(Joystick j1, Joystick j2)
     {
-
+        if(j1.getRawAxis(3) >= CLIMB_THRESH)
+        {
+            if(!active[DESCENDING])
+            {
+                extender.setNeutralMode(NeutralMode.Coast);
+                active[DESCENDING] = true;
+            }
+            extender.set(CLIMB_DOWN_SPD);
+        }
+        else if(j1.getRawButton(6))
+        {
+            if(!active[ASCENDING])
+            {
+                extender.setNeutralMode(NeutralMode.Brake);
+                active[ASCENDING] = true;
+            }
+            extender.set(CLIMB_UP_SPD);
+        }
+        if(active[DESCENDING] && j1.getRawAxis(3) < CLIMB_THRESH)
+        {
+            active[DESCENDING] = false;
+            extender.setNeutralMode(NeutralMode.Brake);
+            extender.set(0);
+        }
+        if(active[ASCENDING] && !j1.getRawButton(6))
+        {
+            active[ASCENDING] = false;
+            extender.set(0);
+        }
     }
 }

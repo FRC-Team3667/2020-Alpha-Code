@@ -58,7 +58,7 @@ public class Robot extends TimedRobot {
     catch(Exception e){}
     try
     {
-      joy1 = new Joystick(1);
+      joy2 = new Joystick(1);
     }
     catch(Exception e){}
     op = new Operations();
@@ -120,7 +120,8 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     driveS.drive(joy1);
-    op.operate(joy2);
+    op.operate(joy1, joy2);
+    SmartDashboard.putNumber("axis 3: ", joy1.getRawAxis(3));
   }
 
   /**
