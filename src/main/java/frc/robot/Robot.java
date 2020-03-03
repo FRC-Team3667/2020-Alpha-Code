@@ -28,14 +28,9 @@ public class Robot extends TimedRobot {
   //Drive system
   private DriveSystem driveS;
 
-  /* *FIX* The ColorSensor object, currently in the Robot
-  class, may need to be in another class in the future.*/
-  //Color sensor
-  private ColorSensor colorS;
-
   //Joysticks
-  private Joystick joy1;
-  private Joystick joy2;
+  private LogitechJoy joy1;
+  private LogitechJoy joy2;
 
   //Operations object
   private Operations op;
@@ -49,19 +44,18 @@ public class Robot extends TimedRobot {
     m_chooser.setDefaultOption("Default Auto", kDefaultAuto);
     m_chooser.addOption("My Auto", kCustomAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
-    driveS = new DriveSystem(true);
-    colorS = new ColorSensor();
-    try
-    {
-      joy1 = new Joystick(0);
-    }
-    catch(Exception e){}
-    try
-    {
-      joy2 = new Joystick(1);
-    }
-    catch(Exception e){}
     op = new Operations();
+    driveS = new DriveSystem(true, op);
+    try
+    {
+      joy1 = new LogitechJoy(0);
+    }
+    catch(Exception e){}
+    try
+    {
+      joy2 = new LogitechJoy(1);
+    }
+    catch(Exception e){}
   }
 
   /**

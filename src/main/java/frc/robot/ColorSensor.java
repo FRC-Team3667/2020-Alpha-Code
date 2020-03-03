@@ -20,16 +20,47 @@ public class ColorSensor extends ColorSensorV3{
         RED, YELLOW, BLUE, GREEN, UNKNOWN;
 
         public static EColor toEnum(String s) {
-            if (s.equals(RED.toString())) {
+            if (s.equals(RED.toString()))
+            {
                 return RED;
-            } else if (s.equals(YELLOW.toString())) {
+            }
+            else if(s.equals(YELLOW.toString()))
+            {
                 return YELLOW;
-            } else if (s.equals(BLUE.toString())) {
+            }
+            else if(s.equals(BLUE.toString()))
+            {
                 return BLUE;
-            } else if (s.equals(GREEN.toString())) {
+            }
+            else if(s.equals(GREEN.toString()))
+            {
                 return GREEN;
-            } else {
+            }
+            else
+            {
                 return UNKNOWN;
+            }
+        }
+
+        public static EColor toEnum(char c)
+        {
+            switch (c)
+            {
+                case 'B' :
+                    //Blue case code
+                    return BLUE;
+                case 'G' :
+                    //Green case code
+                    return GREEN;
+                case 'R' :
+                    //Red case code
+                    return RED;
+                case 'Y' :
+                    //Yellow case code
+                    return YELLOW;
+                default :
+                //This is corrupt data
+                    return UNKNOWN;
             }
         }
     }

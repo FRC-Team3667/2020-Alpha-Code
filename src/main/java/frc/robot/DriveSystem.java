@@ -10,6 +10,7 @@ package frc.robot;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
@@ -162,6 +163,7 @@ public class DriveSystem {
         private static final int ANGLE_SAFE = 30;
 
         private DriveSystem d;
+        private Operations op;
         private pseuJoy j;
         private Timer t;
         private boolean[] active;
@@ -170,9 +172,10 @@ public class DriveSystem {
         private double targetAngle;
         private int stage;
 
-        public Auton(DriveSystem d)
+        public Auton(DriveSystem d, Operations op)
         {
             this.d = d;
+            this.op = op;
             j = new pseuJoy();
             t = new Timer();
             active = new boolean[ACTIVE_LENGTH];
@@ -363,17 +366,21 @@ public class DriveSystem {
     private NavX nav;
     private Auton auto;
 
-    public DriveSystem(boolean mecanum)
+    public DriveSystem(boolean mecanum, Operations op)
     {
         this.mecanum = mecanum;
         frontLeftMotor = new WPI_VictorSPX(14);
         frontLeftMotor.setInverted(true);
+        frontLeftMotor.setNeutralMode(NeutralMode.Brake);
         frontRightMotor = new WPI_VictorSPX(13);
         frontRightMotor.setInverted(true);
+        frontRightMotor.setNeutralMode(NeutralMode.Brake);
         rearRightMotor = new WPI_VictorSPX(12);
         rearRightMotor.setInverted(true);
+        rearRightMotor.setNeutralMode(NeutralMode.Brake);
         rearLeftMotor = new WPI_VictorSPX(11);
         rearLeftMotor.setInverted(true);
+        rearLeftMotor.setNeutralMode(NeutralMode.Brake);
         if(mecanum)
         {
             _mDrive = new MecanumDrive(frontLeftMotor, rearLeftMotor, frontRightMotor, rearRightMotor);
@@ -384,7 +391,7 @@ public class DriveSystem {
             new SpeedControllerGroup(frontRightMotor, rearRightMotor));
         }
         nav = new NavX();
-        auto = new Auton(this);
+        auto = new Auton(this, op);
     }
 
     //autoDrive based on depth and angle

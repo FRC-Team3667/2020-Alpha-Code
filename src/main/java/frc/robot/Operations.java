@@ -7,18 +7,18 @@
 
 package frc.robot;
 
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.Joystick;
-import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
-
-import java.util.TimerTask;
 import java.util.Timer;
+import java.util.TimerTask;
 
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
+import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
+
+import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Servo;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.DriverStation;
 
 /**
  * Add your docs here.
@@ -29,18 +29,25 @@ public class Operations {
     private static final int ASCENDING = 1;
     private static final double CLIMB_UP_SPD = .65;
     private static final double CLIMB_DOWN_SPD = .3;
-    private static final double WINCH_DOWN_SPD = -.35;
-    private static final double INTAKE_DEPLOY_POS = 65;
+    private static final double WINCH_DOWN_SPD = .70;
+    private static final double INTAKE_DEPLOY_POS = 62;
     private static final double INTAKE_RETRACT_POS = 10;
     private static final double INTAKE_CLIMB_POS = 25;
     private static final double INTAKE_POS_TOLERANCE = 1.5;
     private static final double INTAKE_IN_SPD = 0.4;
     private static final double INTAKE_OUT_SPD = -0.5;
     private static final double HOOD_UP = 160;
-    private static final double HOOD_DOWN = 0;
+    private static final double SERVO_MIN = 0;
+    private static final double SERVO_MAX = 180;
     private static final int HOOD_UP_T = 3000;
     private static final int HOOD_DOWN_T = 2100;
+    private static final int SHOOT_BALLS_T = 7000;
     private static final double SHOOTER_SPD = 1;
+    private static final double SPIN_WHEEL_SPD = .5;
+    private static final int COLOR_WHEEL_DELAY = 3000;
+    private static final int COLOR_UP_T = 5000;
+    private static final int COLOR_DOWN_T = 5000;
+    private static final int THREE_SPINS_NUM_C = 25;
 
     // constant for talonFX
     private static final int UNITS_PER_REV = 2048;
@@ -50,6 +57,20 @@ public class Operations {
     private int shootStage;
     private Timer t;
     private int winchCycles;
+    private boolean hoodSet;
+    private boolean beltsSet;
+    private boolean spinning;
+    private int spinStage;
+    private ColorSensor.EColor last;
+    private int numColors;
+    private boolean colorSpinSet;
+    private boolean togglingColorEx;
+    private double throttleTime;
+    private boolean sensing;
+    private String gameData;
+
+    //Color sensor
+    private ColorSensor colorS;
 
     //Limit switches
     DigitalInput extendLimitSwitch;
@@ -80,6 +101,7 @@ public class Operations {
         //Hold button (RB, cont 1) to extend scissor climber
 
     private WPI_VictorSPX winch;
+        //positive pulls the robot upwards, negative lets it back down
         //Hold button (RT, cont 1) to retract scissor climber, lifting robot (no power to scissor climber motor, power to winch motor)
 
     private WPI_VictorSPX spin;
@@ -103,6 +125,16 @@ public class Operations {
         shootStage = 0;
         t = new Timer();
         winchCycles = 0;
+        hoodSet = true;
+        beltsSet = true;
+        spinning = false;
+        spinStage = 0;
+        numColors = 0;
+        colorSpinSet = true;
+        togglingColorEx = false;
+        throttleTime = 0;
+        sensing = false;
+        colorS = new ColorSensor();
         //motor variable initialization
         intakeDep = new WPI_TalonSRX(21);
         intakeDep.setNeutralMode(NeutralMode.Brake);
@@ -118,7 +150,9 @@ public class Operations {
         extender.setInverted(true);
         extender.setNeutralMode(NeutralMode.Brake);
         winch = new WPI_VictorSPX(42);
+        winch.setInverted(true);
         spin = new WPI_VictorSPX(51);
+        spin.setNeutralMode(NeutralMode.Brake);
         hood = new Servo(0);
         hood.setBounds(2.0, 1.8, 1.5, 1.3, 1.0);
         // hood.setSpeed(0);
@@ -176,29 +210,63 @@ public class Operations {
         {
             fireCells();
         }
-        if(j2.getRawButton(LogitechJoy.BTN_RB))
-        {
-            setCellIntakePos(INTAKE_DEPLOY_POS);
-            intake1.set(INTAKE_IN_SPD);
-        }
         else
         {
-            setCellIntakePos(INTAKE_RETRACT_POS);
+            if(j2.getRawButton(LogitechJoy.BTN_RB))
+            {
+                setCellIntakePos(INTAKE_DEPLOY_POS);
+                intake1.set(INTAKE_IN_SPD);
+            }
+            else
+            {
+                setCellIntakePos(INTAKE_RETRACT_POS);
+            }
+            if(j2.getRawAxis(LogitechJoy.LEFT_TRIGGER) > LogitechJoy.TRIGGER_THRESH)
+            {
+                toggleColorEx();
+            }
+            // if(j2.getRawButton(LogitechJoy.BTN_LB))
+            // {
+            //     intake2.set(INTAKE_IN_SPD);
+            // }
+            // if(j2.getRawButton(LogitechJoy.BTN_B))
+            // {
+            //     intake1.set(INTAKE_OUT_SPD);
+            //     intake2.set(INTAKE_OUT_SPD);
+            // }
+            if (j2.getRawButton(LogitechJoy.BTN_B))
+            {
+                intake1.set(INTAKE_OUT_SPD);
+                intake2.set(INTAKE_OUT_SPD);
+                throttleTime = 0;
+            }
+            else if(j2.getRawButton(LogitechJoy.BTN_LB) && throttleTime <= System.currentTimeMillis())
+            {
+                intake2.set(INTAKE_IN_SPD);
+                throttleTime = System.currentTimeMillis() + 1000;
+            } 
+            else if(throttleTime <= System.currentTimeMillis())
+            {
+                intake2.set(0);
+            }
+            // if(!j2.getRawButton(LogitechJoy.BTN_LB) && !j2.getRawButton(LogitechJoy.BTN_B))
+            // {
+            //     intake2.set(0);
+            // }
+            if(!j2.getRawButton(LogitechJoy.BTN_RB) && !j2.getRawButton(LogitechJoy.BTN_B))
+            {
+                intake1.set(0);
+            }
+            if(j2.getRawButton(LogitechJoy.BTN_Y) || sensing)
+            {
+                spinToColor();
+            }
+            else if(j2.getRawButton(LogitechJoy.BTN_X) || spinning)
+            {
+                spinWheel();
+            }
+            climb(j1);
         }
-        if(j2.getRawButton(LogitechJoy.BTN_B))
-        {
-            intake1.set(INTAKE_OUT_SPD);
-            intake2.set(INTAKE_OUT_SPD);
-        }
-        else
-        {
-            intake2.set(0);
-        }
-        if(!j2.getRawButton(LogitechJoy.BTN_RB) && !j2.getRawButton(LogitechJoy.BTN_B))
-        {
-            intake1.set(0);
-        }
-        climb(j1);
         healthCheck();
     }
 
@@ -211,53 +279,156 @@ public class Operations {
             case 0:
                 hood.setAngle(HOOD_UP);
                 shooter.set(SHOOTER_SPD);
-                t.schedule(new TimerTask(){
-                    @Override
-                    public void run()
-                    {
-                        shootStage++;
-                    }
-                    }, (long) HOOD_UP_T);
+                intake1.set(0);
+                intake2.set(0);
+                if(hoodSet)
+                {
+                    hoodSet = false;
+                    t.schedule(new TimerTask(){
+                        @Override
+                        public void run()
+                        {
+                            shootStage++;
+                        }
+                        }, (long) HOOD_UP_T);
+                }
                 break;
             case 1:
+                shooter.set(SHOOTER_SPD);
+                intake1.set(INTAKE_IN_SPD);
                 intake2.set(INTAKE_IN_SPD);
-                t.schedule(new TimerTask(){
-                    @Override
-                    public void run()
-                    {
-                        intake2.set(0);
-                        shootStage++;
-                    }
-                    }, (long) 7);
+                if(beltsSet)
+                {
+                    beltsSet = false;
+                    t.schedule(new TimerTask(){
+                        @Override
+                        public void run()
+                        {
+                            shootStage++;
+                        }
+                        }, (long) SHOOT_BALLS_T);
+                }
                 break;
             default:
+                hood.setAngle(0);
+                shooter.set(0);
+                intake1.set(0);
+                intake2.set(0);
+                hoodSet = true;
+                beltsSet = true;
                 shootStage = 0;
                 shoot = false;
         }
     }
 
+    private void toggleColorEx()
+    {
+        if(!togglingColorEx)
+        {
+            togglingColorEx = true;
+            if(colorEx.getAngle() < SERVO_MAX / 2)
+            {
+                colorEx.setAngle(SERVO_MAX);
+                t.schedule(new TimerTask(){
+                    @Override
+                    public void run()
+                    {
+                        togglingColorEx = false;
+                        spinStage = 1;
+                    }
+                    }, (long) COLOR_UP_T);
+            }
+            else
+            {
+                colorEx.setAngle(SERVO_MIN);
+                t.schedule(new TimerTask(){
+                    @Override
+                    public void run()
+                    {
+                        togglingColorEx = false;
+                        spinStage = 1;
+                    }
+                    }, (long) COLOR_DOWN_T);
+            }
+        }
+    }
+
+    private void spinToColor()
+    {
+        sensing = true;
+        spin.set(SPIN_WHEEL_SPD);
+        gameData = DriverStation.getInstance().getGameSpecificMessage();
+        if(gameData.length() > 0 && colorS.getColorOff() == ColorSensor.EColor.toEnum(gameData.charAt(0)))
+        {
+            spin.set(0);
+            sensing = false;
+        }
+    }
+
+    private void spinWheel()
+    {
+        spinning = true;
+        switch(spinStage)
+        {
+            case 1:
+                last = colorS.getColorDetected();
+                break;
+            case 2:
+                spin.set(SPIN_WHEEL_SPD);
+                ColorSensor.EColor cur = colorS.getColorDetected();
+                if(last != cur)
+                {
+                    last = cur;
+                    numColors++;
+                }
+                if(numColors >= THREE_SPINS_NUM_C)
+                {
+                    spin.set(0);
+                    spinStage = 0;
+                    colorSpinSet = true;
+                    spinning = false;
+                }
+                break;
+        }
+    }
+
     private void climb(Joystick j) {
-        if (j.getRawAxis(3) >= LogitechJoy.TRIGGER_THRESH) {
-            if (!active[DESCENDING]) {
+        if(j.getRawAxis(LogitechJoy.RIGHT_TRIGGER) >= LogitechJoy.TRIGGER_THRESH)
+        {
+            if(!active[DESCENDING])
+            {
                 extender.setNeutralMode(NeutralMode.Coast);
                 active[DESCENDING] = true;
             }
-            extender.set(CLIMB_DOWN_SPD);
+            winch.set(WINCH_DOWN_SPD);
+            winchCycles++;
         } 
-        else if(j.getRawButton(6) && !extendLimitSwitch.get()) 
+        else if(j.getRawButton(LogitechJoy.BTN_RB) && !extendLimitSwitch.get()) 
         {
-            if (!active[ASCENDING]) {
-                extender.setNeutralMode(NeutralMode.Brake);
-                active[ASCENDING] = true;
+            if(winchCycles > 0)
+            {
+                winch.set(-WINCH_DOWN_SPD);
+                winchCycles--;
             }
-            extender.set(CLIMB_UP_SPD);
+            else
+            {
+                if(!active[ASCENDING])
+                {
+                    extender.setNeutralMode(NeutralMode.Brake);
+                    active[ASCENDING] = true;
+                }
+                extender.set(CLIMB_UP_SPD);
+            }
         }
-        if(active[DESCENDING] && j.getRawAxis(3) < LogitechJoy.TRIGGER_THRESH) {
+        if(active[DESCENDING] && j.getRawAxis(LogitechJoy.RIGHT_TRIGGER) < LogitechJoy.TRIGGER_THRESH)
+        {
             active[DESCENDING] = false;
             extender.setNeutralMode(NeutralMode.Brake);
             extender.set(0);
+            winch.set(0);
         }
-        if((active[ASCENDING] && !j.getRawButton(6)) || extendLimitSwitch.get()) {
+        if((active[ASCENDING] && !j.getRawButton(LogitechJoy.BTN_RB)) || extendLimitSwitch.get())
+        {
             active[ASCENDING] = false;
             extender.set(0);
         }
