@@ -15,10 +15,15 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
 
+import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Servo;
 import edu.wpi.first.wpilibj.DriverStation;
+
+import com.playingwithfusion.TimeOfFlight;
+
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * Add your docs here.
@@ -30,15 +35,15 @@ public class Operations {
     private static final double CLIMB_UP_SPD = .65;
     private static final double CLIMB_DOWN_SPD = .3;
     private static final double WINCH_DOWN_SPD = .70;
-    private static final double INTAKE_DEPLOY_POS = 62;
-    private static final double INTAKE_RETRACT_POS = 10;
-    private static final double INTAKE_CLIMB_POS = 25;
+    private static final int INTAKE_DEPLOY_POS = 62;
+    private static final int INTAKE_RETRACT_POS = 15;
+    private static final int INTAKE_CLIMB_POS = 25;
     private static final double INTAKE_POS_TOLERANCE = 1.5;
     private static final double INTAKE_IN_SPD = 0.4;
     private static final double INTAKE_OUT_SPD = -0.5;
-    private static final double HOOD_UP = 160;
-    private static final double SERVO_MIN = 0;
-    private static final double SERVO_MAX = 180;
+    private static final int HOOD_UP = 160;
+    private static final int SERVO_MIN = 0;
+    private static final int SERVO_MAX = 180;
     private static final int HOOD_UP_T = 3000;
     private static final int HOOD_DOWN_T = 2100;
     private static final int SHOOT_BALLS_T = 7000;
@@ -48,6 +53,7 @@ public class Operations {
     private static final int COLOR_UP_T = 5000;
     private static final int COLOR_DOWN_T = 5000;
     private static final int THREE_SPINS_NUM_C = 25;
+    private static final double EMPTY = 254;
 
     // constant for talonFX
     private static final int UNITS_PER_REV = 2048;
@@ -59,6 +65,7 @@ public class Operations {
     private int winchCycles;
     private boolean hoodSet;
     private boolean beltsSet;
+    private boolean indexing;
     private boolean spinning;
     private int spinStage;
     private ColorSensor.EColor last;
@@ -68,6 +75,8 @@ public class Operations {
     private double throttleTime;
     private boolean sensing;
     private String gameData;
+    private AnalogInput autonSwitch1;
+    private AnalogInput autonSwitch2;
 
     //Color sensor
     private ColorSensor colorS;
@@ -92,9 +101,9 @@ public class Operations {
         //positive shoots balls up and out
         //Press button (A, cont 2) to shoot all balls in robot
 
-    // laser1
-    // laser2
-    // laserS
+    private TimeOfFlight laser1;
+    private TimeOfFlight laser2;
+    private TimeOfFlight laserS;
 
     private WPI_VictorSPX extender;
         //positive extends the scissor climber upwards
@@ -127,6 +136,7 @@ public class Operations {
         winchCycles = 0;
         hoodSet = true;
         beltsSet = true;
+        indexing = false;
         spinning = false;
         spinStage = 0;
         numColors = 0;
@@ -143,9 +153,9 @@ public class Operations {
         intake2 = new WPI_TalonSRX(23);
         shooter = new WPI_TalonFX(24);
         shooter.setInverted(true);
-        // laser1
-        // laser2
-        // laserS
+        laser1 = new TimeOfFlight(31);
+        laser2 = new TimeOfFlight(32);
+        laserS = new TimeOfFlight(33);
         extender = new WPI_VictorSPX(41);
         extender.setInverted(true);
         extender.setNeutralMode(NeutralMode.Brake);
@@ -161,6 +171,10 @@ public class Operations {
         winchLock = new Servo(2);
         extendLimitSwitch = new DigitalInput(1);
         intakeDep.setSelectedSensorPosition(0);
+        // Analog Switch code
+        // 630,680,650,810,845,860,890,905,920,940,950,980
+        autonSwitch1 = new AnalogInput(3);
+        autonSwitch2 = new AnalogInput(2);
     }
 
     public void operate(Joystick j1, Joystick j2)
@@ -206,6 +220,9 @@ public class Operations {
         //     shooter.set(shooterSpeed);
         //     SmartDashboard.putNumber("spped", shooterSpeed);
         //  }
+        SmartDashboard.putNumber("laser1", laser1.getRange());
+        SmartDashboard.putNumber("laser2", laser2.getRange());
+        SmartDashboard.putNumber("laserS", laserS.getRange());
         if(j2.getRawButton(1) || shoot)
         {
             fireCells();
@@ -216,6 +233,7 @@ public class Operations {
             {
                 setCellIntakePos(INTAKE_DEPLOY_POS);
                 intake1.set(INTAKE_IN_SPD);
+                indexBalls();
             }
             else
             {
@@ -229,30 +247,42 @@ public class Operations {
             // {
             //     intake2.set(INTAKE_IN_SPD);
             // }
+
+            // if(j2.getRawButton(LogitechJoy.BTN_B) || puking)
+            // {
+            //     puke();
+            // }
+
+            if(j2.getRawButton(LogitechJoy.BTN_B))
+            {
+                intake1.set(INTAKE_OUT_SPD);
+                intake2.set(INTAKE_OUT_SPD);
+            }
+
             // if(j2.getRawButton(LogitechJoy.BTN_B))
             // {
             //     intake1.set(INTAKE_OUT_SPD);
             //     intake2.set(INTAKE_OUT_SPD);
+            //     throttleTime = 0;
             // }
-            if (j2.getRawButton(LogitechJoy.BTN_B))
-            {
-                intake1.set(INTAKE_OUT_SPD);
-                intake2.set(INTAKE_OUT_SPD);
-                throttleTime = 0;
-            }
-            else if(j2.getRawButton(LogitechJoy.BTN_LB) && throttleTime <= System.currentTimeMillis())
-            {
-                intake2.set(INTAKE_IN_SPD);
-                throttleTime = System.currentTimeMillis() + 1000;
-            } 
-            else if(throttleTime <= System.currentTimeMillis())
-            {
-                intake2.set(0);
-            }
+            // else if(j2.getRawButton(LogitechJoy.BTN_LB) && throttleTime <= System.currentTimeMillis())
+            // {
+            //     intake2.set(INTAKE_IN_SPD);
+            //     throttleTime = System.currentTimeMillis() + 1000;
+            // } 
+            // else if(throttleTime <= System.currentTimeMillis())
+            // {
+            //     intake2.set(0);
+            // }
+
             // if(!j2.getRawButton(LogitechJoy.BTN_LB) && !j2.getRawButton(LogitechJoy.BTN_B))
             // {
             //     intake2.set(0);
             // }
+            if(!j2.getRawButton(LogitechJoy.BTN_B) && !indexing)
+            {
+                intake2.set(0);
+            }
             if(!j2.getRawButton(LogitechJoy.BTN_RB) && !j2.getRawButton(LogitechJoy.BTN_B))
             {
                 intake1.set(0);
@@ -268,6 +298,43 @@ public class Operations {
             climb(j1);
         }
         healthCheck();
+    }
+
+    private void puke()
+    {
+        // puking = true;
+        intake1.set(INTAKE_OUT_SPD);
+        intake2.set(INTAKE_OUT_SPD);
+        if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
+        {
+
+        }
+    }
+
+    private void indexBalls()
+    {
+        if(laserS.getRange() >= EMPTY)
+        {
+            if(laser1.getRange() < EMPTY)
+            {
+                indexing = true;
+                intake2.set(INTAKE_IN_SPD);
+            }
+            else
+            {
+                intake2.set(0);
+                indexing = false;
+            }
+        }
+        else
+        {
+            if(laser1.getRange() < EMPTY)
+            {
+                intake1.set(0);
+            }
+            intake2.set(0);
+            indexing = false;
+        }
     }
 
     private void healthCheck() {}
@@ -297,6 +364,19 @@ public class Operations {
                 shooter.set(SHOOTER_SPD);
                 intake1.set(INTAKE_IN_SPD);
                 intake2.set(INTAKE_IN_SPD);
+                // if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
+                // {
+                //     emptyCycles++;
+                // }
+                // else
+                // {
+                //     emptyCycles = 0;
+                // }
+                // if(emptyCycles > EMPTY_T)
+                // {
+                //     emptyCycles = 0;
+                //     shootStage++;
+                // }
                 if(beltsSet)
                 {
                     beltsSet = false;
