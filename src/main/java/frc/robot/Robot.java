@@ -105,7 +105,7 @@ public class Robot extends TimedRobot {
     }
     //Auton drive function
     //possibly feed angle and depth of expected play into autoDrive function
-    driveS.autoDrive();
+    driveS.autoRun();
   }
 
   /**
@@ -114,8 +114,7 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     driveS.drive(joy1);
-    op.operate(joy1, joy2);
-    SmartDashboard.putNumber("axis 3: ", joy1.getRawAxis(3));
+    op.operate(joy1, joy2, driveS);
   }
 
   /**

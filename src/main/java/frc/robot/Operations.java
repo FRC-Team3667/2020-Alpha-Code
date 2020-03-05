@@ -15,7 +15,6 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
 
-import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Servo;
@@ -24,6 +23,10 @@ import edu.wpi.first.wpilibj.DriverStation;
 import com.playingwithfusion.TimeOfFlight;
 
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.NetworkTableEntry;
+import edu.wpi.first.networktables.NetworkTable;
 
 /**
  * Add your docs here.
@@ -35,7 +38,7 @@ public class Operations {
     private static final double CLIMB_UP_SPD = .65;
     private static final double CLIMB_DOWN_SPD = .3;
     private static final double WINCH_DOWN_SPD = .70;
-    private static final int INTAKE_DEPLOY_POS = 62;
+    private static final int INTAKE_DEPLOY_POS = 65;
     private static final int INTAKE_RETRACT_POS = 15;
     private static final int INTAKE_CLIMB_POS = 25;
     private static final double INTAKE_POS_TOLERANCE = 1.5;
@@ -54,6 +57,9 @@ public class Operations {
     private static final int COLOR_DOWN_T = 5000;
     private static final int THREE_SPINS_NUM_C = 25;
     private static final double EMPTY = 254;
+    private static final double EMPTY_B_COEF = .55;
+    private static final double EMPTY_T_COEF = .55;
+    private static final int EMPTY_T = 2000 / 20;
 
     // constant for talonFX
     private static final int UNITS_PER_REV = 2048;
@@ -65,6 +71,7 @@ public class Operations {
     private int winchCycles;
     private boolean hoodSet;
     private boolean beltsSet;
+    private boolean puking;
     private boolean indexing;
     private boolean spinning;
     private int spinStage;
@@ -74,9 +81,28 @@ public class Operations {
     private boolean togglingColorEx;
     private double throttleTime;
     private boolean sensing;
+    private int emptyCycles;
     private String gameData;
-    private AnalogInput autonSwitch1;
-    private AnalogInput autonSwitch2;
+
+    // private double TARGETING_SPEED = .25;
+    // private double TARGETING_AREA = 100;
+    // private double TARGETING_AREA_OFFSET = 25;
+    // private double TARGETING_XCOORD = 100;
+    // private double TARGETING_YCOORD = 100;
+    // private double TARGETING_COORD_OFFSET = 25;
+    // private double nTXSpeed = 0;
+    // private double nTYSpeed = 0;
+    // private double area;
+    // private double xEntry;
+    // private double yEntry;
+
+    
+    // private boolean nTables = true;
+    // private double visionArea = 0;
+    // private double visionX = 0;
+    // private double visionY = 0;
+    // private NetworkTable table;
+    // private final NetworkTableInstance inst = NetworkTableInstance.getDefault();
 
     //Color sensor
     private ColorSensor colorS;
@@ -136,6 +162,7 @@ public class Operations {
         winchCycles = 0;
         hoodSet = true;
         beltsSet = true;
+        puking = false;
         indexing = false;
         spinning = false;
         spinStage = 0;
@@ -144,6 +171,7 @@ public class Operations {
         togglingColorEx = false;
         throttleTime = 0;
         sensing = false;
+        emptyCycles = 0;
         colorS = new ColorSensor();
         //motor variable initialization
         intakeDep = new WPI_TalonSRX(21);
@@ -171,13 +199,17 @@ public class Operations {
         winchLock = new Servo(2);
         extendLimitSwitch = new DigitalInput(1);
         intakeDep.setSelectedSensorPosition(0);
+        // // Network Tables
+        // if (nTables) {
+        //     inst.startClientTeam(3667);
+        // }
+
         // Analog Switch code
-        // 630,680,650,810,845,860,890,905,920,940,950,980
-        autonSwitch1 = new AnalogInput(3);
-        autonSwitch2 = new AnalogInput(2);
+        // Values Found Online: 630,680,650,810,845,860,890,905,920,940,950,980
+        // Actual Values: 4030, 2450, 2685, 2990, 3184, 3313, 3416, 3495, 3553, 3648, 3708, 3770
     }
 
-    public void operate(Joystick j1, Joystick j2)
+    public void operate(Joystick j1, Joystick j2, DriveSystem d)
     {
         // if (j1.getRawButton(4)){
         //     intake1.set(.35);
@@ -225,7 +257,7 @@ public class Operations {
         SmartDashboard.putNumber("laserS", laserS.getRange());
         if(j2.getRawButton(1) || shoot)
         {
-            fireCells();
+            fireCells(d);
         }
         else
         {
@@ -243,16 +275,19 @@ public class Operations {
             {
                 toggleColorEx();
             }
+
             // if(j2.getRawButton(LogitechJoy.BTN_LB))
             // {
             //     intake2.set(INTAKE_IN_SPD);
             // }
 
+            //Puking method to empty all balls. Not currently working
             // if(j2.getRawButton(LogitechJoy.BTN_B) || puking)
             // {
             //     puke();
             // }
 
+            //Previous puking method
             if(j2.getRawButton(LogitechJoy.BTN_B))
             {
                 intake1.set(INTAKE_OUT_SPD);
@@ -300,22 +335,39 @@ public class Operations {
         healthCheck();
     }
 
-    private void puke()
+    public boolean isEmpty()
     {
-        // puking = true;
-        intake1.set(INTAKE_OUT_SPD);
-        intake2.set(INTAKE_OUT_SPD);
-        if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
-        {
-
-        }
+        return emptyCycles >= EMPTY_T;
     }
+
+    // private void puke()
+    // {
+    //     if(emptyCycles >= EMPTY_T)
+    //     {
+    //         emptyCycles = 0;
+    //         intake1.set(0);
+    //         intake2.set(0);
+    //         puking = false;
+    //         return;
+    //     }
+    //     puking = true;
+    //     intake1.set(INTAKE_OUT_SPD);
+    //     intake2.set(INTAKE_OUT_SPD);
+    //     if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
+    //     {
+    //         emptyCycles++;
+    //     }
+    //     else
+    //     {
+    //         emptyCycles = 0;
+    //     }
+    // }
 
     private void indexBalls()
     {
         if(laserS.getRange() >= EMPTY)
         {
-            if(laser1.getRange() < EMPTY)
+            if(laser1.getRange() < EMPTY * EMPTY_B_COEF)
             {
                 indexing = true;
                 intake2.set(INTAKE_IN_SPD);
@@ -328,7 +380,7 @@ public class Operations {
         }
         else
         {
-            if(laser1.getRange() < EMPTY)
+            if(laser1.getRange() < EMPTY * EMPTY_B_COEF)
             {
                 intake1.set(0);
             }
@@ -339,7 +391,7 @@ public class Operations {
 
     private void healthCheck() {}
 
-    private void fireCells() {
+    private void fireCells(DriveSystem d) {
         shoot = true;
         switch(shootStage)
         {
@@ -360,34 +412,37 @@ public class Operations {
                         }, (long) HOOD_UP_T);
                 }
                 break;
-            case 1:
+            case 2:
+                if(emptyCycles >= EMPTY_T)
+                {
+                    emptyCycles = 0;
+                    shootStage++;
+                    return;
+                }
                 shooter.set(SHOOTER_SPD);
                 intake1.set(INTAKE_IN_SPD);
                 intake2.set(INTAKE_IN_SPD);
-                // if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
-                // {
-                //     emptyCycles++;
-                // }
-                // else
-                // {
-                //     emptyCycles = 0;
-                // }
-                // if(emptyCycles > EMPTY_T)
-                // {
-                //     emptyCycles = 0;
-                //     shootStage++;
-                // }
-                if(beltsSet)
+                if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
                 {
-                    beltsSet = false;
-                    t.schedule(new TimerTask(){
-                        @Override
-                        public void run()
-                        {
-                            shootStage++;
-                        }
-                        }, (long) SHOOT_BALLS_T);
+                    emptyCycles++;
                 }
+                else
+                {
+                    emptyCycles = 0;
+                }
+
+                //Previous method to shoot all balls
+                // if(beltsSet)
+                // {
+                //     beltsSet = false;
+                //     t.schedule(new TimerTask(){
+                //         @Override
+                //         public void run()
+                //         {
+                //             shootStage++;
+                //         }
+                //         }, (long) SHOOT_BALLS_T);
+                // }
                 break;
             default:
                 hood.setAngle(0);
@@ -532,4 +587,36 @@ public class Operations {
             intakeDep.set(0);
         }
     }
+
+    // public void target(DriveSystem d, NetworkTable table) {
+    //     double area = table.getEntry("Area").getDouble(-1);
+    //     double xEntry = table.getEntry("Coords-x").getDouble(-1);
+    //     double yEntry = table.getEntry("Coords-y").getDouble(-1);
+    //     if (area >= TARGETING_AREA + TARGETING_AREA_OFFSET) { // Robot is too far forward
+    //         nTYSpeed = -TARGETING_SPEED;
+    //     } else if (area <= TARGETING_AREA - TARGETING_AREA_OFFSET) { // Robot is too far back
+    //         nTYSpeed = TARGETING_SPEED;
+    //     }
+
+    //     if (xEntry >= TARGETING_XCOORD + TARGETING_COORD_OFFSET) { // Robot is too far right
+    //         nTXSpeed = -TARGETING_SPEED;
+    //     } else if (xEntry <= TARGETING_XCOORD - TARGETING_COORD_OFFSET) { // Robot is too far right
+    //         nTXSpeed = TARGETING_SPEED;
+    //     }
+
+    //     if (mecanum) {
+    //         _mDrive.driveCartesian(nTYSpeed, nTXSpeed, 0, 0);
+    //     } else {
+    //         _aDrive.arcadeDrive(nTXSpeed, 0);
+    //     }
+    // }
+
+    // public boolean isInTargetingRange() {
+    //     if (area >= TARGETING_AREA - TARGETING_AREA_OFFSET && area <= TARGETING_AREA + TARGETING_AREA_OFFSET) { // Checks Area
+    //         if(xEntry >= TARGETING_XCOORD - TARGETING_COORD_OFFSET && xEntry <= TARGETING_XCOORD + TARGETING_COORD_OFFSET) { // Checks xCord
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // }
 }

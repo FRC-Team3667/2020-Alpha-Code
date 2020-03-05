@@ -53,6 +53,8 @@ public class DriveSystem {
             public static final double TRUE_STRAFE_SPD = .05;
             private static final double TRUING_FAST_COEF = 3;
 
+            private double[] ax;
+            private boolean[] bu;
             private double ax0;
             private double ax1;
             private double ax4;
@@ -92,6 +94,8 @@ public class DriveSystem {
             public pseuJoy()
             {
                 super(50);
+                ax = new double[5];
+                bu = new boolean[10];
                 ax0 = 0;
                 ax1 = 0;
                 ax4 = 0;
@@ -109,39 +113,30 @@ public class DriveSystem {
 
             public void setAxis(int i, double val)
             {
-                switch(i)
+                if(i < ax.length)
                 {
-                    case 0:
-                        ax0 = val;
-                        break;
-
-                    case 1:
-                        ax1 = val;
-                        break;
-
-                    case 4:
-                        ax4 = val;
-                        break;
+                    ax[i] = val;
                 }
             }
 
             @Override
             public double getRawAxis(int i)
             {
-                switch(i)
+                return (i < ax.length)? ax[i] : 0;
+            }
+
+            public void setButton(int i, boolean b)
+            {
+                if(i < ax.length)
                 {
-                    case 0:
-                        return ax0;
-
-                    case 1:
-                        return ax1;
-
-                    case 4:
-                        return ax4;
-
-                    default:
-                        return 0.0;
+                    bu[i] = b;
                 }
+            }
+
+            @Override
+            public boolean getRawButton(int i)
+            {
+                return (i < bu.length)? bu[i] : false;
             }
         }
 
@@ -162,65 +157,165 @@ public class DriveSystem {
         private static final int TIME_SAFE = 500;
         private static final int ANGLE_SAFE = 30;
 
+        private static final double AUTON_BASIC_T = .75;
+
         private DriveSystem d;
         private Operations op;
-        private pseuJoy j;
+        private pseuJoy j1;
+        private pseuJoy j2;
         private Timer t;
         private boolean[] active;
         private double trueHead;
         private double curAngle;
         private double targetAngle;
         private int stage;
+        private int stage2;
+        
+        //Auton switches
+        private Rotary leftRot;
+        private Rotary rightRot;
 
         public Auton(DriveSystem d, Operations op)
         {
             this.d = d;
             this.op = op;
-            j = new pseuJoy();
+            j1 = new pseuJoy();
+            j2 = new pseuJoy();
             t = new Timer();
             active = new boolean[ACTIVE_LENGTH];
             trueHead = 0;
             curAngle = 0;
             targetAngle = 0;
             stage = 0;
+            stage2 = 0;
+            leftRot = new Rotary(3);
+            rightRot = new Rotary(2);
         }
 
-        //Stage-based auton
-        //depth and angle-based drive
-        // public void drive(int d, int a)
-        // {
-            
-        // }
-
-        //experimental drive
-        public void drive()
+        public void run()
         {
+            //Test Drive Code
+            // switch(stage)
+            // {
+            //     case 0:
+            //         move(pseuJoy.MOVE_FWD_FULL_SPD * .5, pseuJoy.MOVE_FWD_SLOW_SPD, 2);
+            //         break;
+
+            //     case 1:
+            //         turn(90);
+            //         break;
+
+            //     case 2:
+            //         strafe(pseuJoy.STRAFE_FULL_SPD * .5, pseuJoy.STRAFE_SLOW_SPD, 3.4);
+            //         break;
+                    
+            //     case 3:
+            //         turn(-90);
+            //         break;
+            // }
+            // d.drive(j1);
+            // SmartDashboard.putNumber("Axis 0:", j1.getRawAxis(0));
+            // SmartDashboard.putNumber("Axis 1:", j1.getRawAxis(1));
+            // SmartDashboard.putNumber("Axis 4:", j1.getRawAxis(4));
+            // SmartDashboard.putNumber("Current Angle: ", d.nav.getAngle());
+            // SmartDashboard.putNumber("Target Angle: ", targetAngle);
             switch(stage)
             {
                 case 0:
-                    move(pseuJoy.MOVE_FWD_FULL_SPD * .5, pseuJoy.MOVE_FWD_SLOW_SPD, 2);
+                    stage++;
+                    t.schedule(new TimerTask(){
+                        @Override
+                        public void run()
+                        {
+                            stage++;
+                        }
+                    }, (long) (rightRot.getPos() - 1) * 1000);
                     break;
-
-                case 1:
-                    turn(90);
-                    break;
-
                 case 2:
-                    strafe(pseuJoy.STRAFE_FULL_SPD * .5, pseuJoy.STRAFE_SLOW_SPD, 3.4);
-                    break;
-                    
-                case 3:
-                    turn(-90);
-                    break;
+                    if(leftRot.getPos() == 1)
+                    {
+                        switch(stage2)
+                        {
+                            case 0:
+                                stage2++;
+                                move(pseuJoy.MOVE_FWD_FULL_SPD, pseuJoy.MOVE_FWD_FULL_SPD, AUTON_BASIC_T);
+                                break;
+                        }
+                    }
+                    if(leftRot.getPos() == 2)
+                    {
+                        switch(stage2)
+                        {
+                            case 0:
+                                j2.setButton(LogitechJoy.BTN_B, true);
+                                stage2++;
+                                break;
+                            case 1:
+                                j2.setButton(LogitechJoy.BTN_B, false);
+                                stage2++;
+                            case 2:
+                                if(op.isEmpty())
+                                {
+                                    stage2++;
+                                }
+                            case 3:
+                                stage2++;
+                                strafe(-pseuJoy.STRAFE_FULL_SPD, -pseuJoy.STRAFE_FULL_SPD, AUTON_BASIC_T);
+                        }
+                    }
+                    if(leftRot.getPos() == 3)
+                    {
+                        switch(stage2)
+                        {
+                            case 0:
+                                stage2++;
+                                turn(180);
+                                break;
+                            case 1:
+                                j2.setButton(LogitechJoy.BTN_A, true);
+                                stage2++;
+                            case 2:
+                                j2.setButton(LogitechJoy.BTN_A, false);
+                                stage2++;
+                        }
+                    }
+                    if(leftRot.getPos() == 4)
+                    {
+                        switch(stage2)
+                        {
+                            case 0:
+                                stage2++;
+                                move(-pseuJoy.MOVE_FWD_FULL_SPD, -pseuJoy.MOVE_FWD_FULL_SPD, 1);
+                                break;
+                        }
+                    }
+                    if(leftRot.getPos() == 5)
+                    {
+                        switch(stage2)
+                        {
+                            case 0:
+                                j2.setButton(LogitechJoy.BTN_B, true);
+                                stage2++;
+                                break;
+                            case 1:
+                                j2.setButton(LogitechJoy.BTN_B, false);
+                                stage2++;
+                            case 2:
+                                if(op.isEmpty())
+                                {
+                                    stage2++;
+                                }
+                            case 3:
+                                stage2++;
+                                strafe(pseuJoy.STRAFE_FULL_SPD, -pseuJoy.STRAFE_FULL_SPD, 1);
+                        }
+                    }
             }
-            d.drive(j);
-            SmartDashboard.putNumber("Axis 0:", j.getRawAxis(0));
-            SmartDashboard.putNumber("Axis 1:", j.getRawAxis(1));
-            SmartDashboard.putNumber("Axis 4:", j.getRawAxis(4));
-            SmartDashboard.putNumber("Current Angle: ", d.nav.getAngle());
-            SmartDashboard.putNumber("Target Angle: ", targetAngle);
+            d.drive(j1);
+            op.operate(j1, j2, d);
         }
-
+        
+        //Positive movement is forward
         private void move(double speed, double slowS, double sec)
         {
             moveArc(speed, slowS, sec, 0);
@@ -231,6 +326,7 @@ public class DriveSystem {
             moveAdv(MOVING_FORWARD, 1, speed, slowS, sec, angle);
         }
 
+        //Positive strafing is to the right
         private void strafe(double speed, double slowS, double sec)
         {
             strafeArc(speed, slowS, sec, 0);
@@ -249,14 +345,14 @@ public class DriveSystem {
             if(!active[boolInd])
             {
                 //*initialization operations*
-                j.setAxis(axis, speed);
+                j1.setAxis(axis, speed);
                 trueHead = d.nav.getAngle();
                 active[boolInd] = true;
                 t.schedule(new TimerTask(){
                   @Override
                   public void run()
                   {
-                    j.setAxis(axis, slowS);
+                    j1.setAxis(axis, slowS);
                   }
                 }, (long) (sec * 1000) - TIME_SAFE);
                 t.schedule(new TimerTask(){
@@ -265,9 +361,9 @@ public class DriveSystem {
                     {
                         active[boolInd] = false;
                         active[TURNING] = false;
-                        j.setAxis(axis, 0);
-                        j.setAxis(4, 0);
-                        stage++;
+                        j1.setAxis(axis, 0);
+                        j1.setAxis(4, 0);
+                        stage2++;
                     }
                   }, (long) (sec * 1000));
             }
@@ -292,64 +388,64 @@ public class DriveSystem {
                 active[TURNING] = true;
                 if(curAngle - ANGLE_SAFE > targetAngle)
                 {
-                    j.setAxis(4, -pseuJoy.getFast(type));
+                    j1.setAxis(4, -pseuJoy.getFast(type));
                 }
                 else if(curAngle + ANGLE_SAFE < targetAngle)
                 {
-                    j.setAxis(4, pseuJoy.getFast(type));
+                    j1.setAxis(4, pseuJoy.getFast(type));
                 }
                 else if(curAngle > targetAngle)
                 {
-                    j.setAxis(4, -pseuJoy.getSlow(type));
+                    j1.setAxis(4, -pseuJoy.getSlow(type));
                 }
                 else if(curAngle < targetAngle)
                 {
-                    j.setAxis(4, pseuJoy.getSlow(type));
+                    j1.setAxis(4, pseuJoy.getSlow(type));
                 }
                 else
                 {
                     active[TURNING] = false;
                     if(advance)
                     {
-                        stage++;
+                        stage2++;
                     }
                 }
             }
             else
             {
                 curAngle = d.nav.getAngle();
-                if(j.getRawAxis(4) > 0) 
+                if(j1.getRawAxis(4) > 0) 
                 {
                     if(curAngle >= targetAngle)
                     {
                         active[TURNING] = false;
-                        j.setAxis(4, 0);
+                        j1.setAxis(4, 0);
                         //advance the stage:
                         if(advance)
                         {
-                            stage++;
+                            stage2++;
                         }
                     }
-                    if(j.getRawAxis(4) > pseuJoy.getSlow(type) && curAngle + ANGLE_SAFE >= targetAngle)
+                    if(j1.getRawAxis(4) > pseuJoy.getSlow(type) && curAngle + ANGLE_SAFE >= targetAngle)
                     {
-                        j.setAxis(4, pseuJoy.getSlow(type));
+                        j1.setAxis(4, pseuJoy.getSlow(type));
                     }
                 }
-                else if(j.getRawAxis(4) != 0)
+                else if(j1.getRawAxis(4) != 0)
                 {
                     if(curAngle <= targetAngle)
                     {
                         active[TURNING] = false;
-                        j.setAxis(4, 0);
+                        j1.setAxis(4, 0);
                         //advance the stage:
                         if(advance)
                         {
-                            stage++;
+                            stage2++;
                         }
                     }
-                    if(j.getRawAxis(4) < -pseuJoy.getSlow(type) && curAngle - ANGLE_SAFE <= targetAngle)
+                    if(j1.getRawAxis(4) < -pseuJoy.getSlow(type) && curAngle - ANGLE_SAFE <= targetAngle)
                     {
-                        j.setAxis(4, -pseuJoy.getSlow(type));
+                        j1.setAxis(4, -pseuJoy.getSlow(type));
                     }
                 }
             }
@@ -400,9 +496,9 @@ public class DriveSystem {
     //     auto.drive(depth, angle);
     // }
 
-    public void autoDrive()
+    public void autoRun()
     {
-        auto.drive();
+        auto.run();
     }
 
     public void drive(Joystick j)
