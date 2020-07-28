@@ -38,7 +38,7 @@ public class Operations {
     private static final double CLIMB_UP_SPD = .65;
     private static final double CLIMB_DOWN_SPD = .3;
     private static final double WINCH_DOWN_SPD = .70;
-    private static final int INTAKE_DEPLOY_POS = 65;
+    private static final double INTAKE_DEPLOY_POS = 67;
     private static final int INTAKE_RETRACT_POS = 15;
     private static final int INTAKE_CLIMB_POS = 25;
     private static final double INTAKE_POS_TOLERANCE = 1.5;
@@ -47,7 +47,7 @@ public class Operations {
     private static final int HOOD_UP = 160;
     private static final int SERVO_MIN = 0;
     private static final int SERVO_MAX = 180;
-    private static final int HOOD_UP_T = 3000;
+    private static final int HOOD_UP_T = 2100;
     private static final int HOOD_DOWN_T = 2100;
     private static final int SHOOT_BALLS_T = 7000;
     private static final double SHOOTER_SPD = 1;
@@ -60,16 +60,27 @@ public class Operations {
     private static final double EMPTY_B_COEF = .55;
     private static final double EMPTY_T_COEF = .55;
     private static final int EMPTY_T = 2000 / 20;
+    private static final double RETRACT_SPEED = -.3;
+    private static final double DEPLOY_SPEED = .2;
+    private static final int RETRACT_T = 800;
+    private static final int DEPLOY_T = 750;
+    private static final double INTAKE1_COEF = 1.2;
+    private static final int SPIN_UP = 6000;
 
     // constant for talonFX
     private static final int UNITS_PER_REV = 2048;
 
     private boolean[] active;
+    private boolean deployed;
+    private boolean deployed2;
+    private boolean deployed3;
+    private boolean shootable;
     private boolean shoot;
     private int shootStage;
     private Timer t;
     private int winchCycles;
     private boolean hoodSet;
+    private boolean hoodDown;
     private boolean beltsSet;
     private boolean puking;
     private boolean indexing;
@@ -156,11 +167,16 @@ public class Operations {
     public Operations()
     {
         active = new boolean[ACTIVE_LENGTH];
+        deployed = false;
+        deployed2 = false;
+        deployed3 = false;
+        shootable = false;
         shoot = false;
         shootStage = 0;
         t = new Timer();
         winchCycles = 0;
         hoodSet = true;
+        hoodDown = true;
         beltsSet = true;
         puking = false;
         indexing = false;
@@ -175,7 +191,7 @@ public class Operations {
         colorS = new ColorSensor();
         //motor variable initialization
         intakeDep = new WPI_TalonSRX(21);
-        intakeDep.setNeutralMode(NeutralMode.Brake);
+        // intakeDep.setNeutralMode(NeutralMode.Brake);
         intake1 = new WPI_TalonSRX(22);
         intake1.setInverted(true);
         intake2 = new WPI_TalonSRX(23);
@@ -255,21 +271,96 @@ public class Operations {
         SmartDashboard.putNumber("laser1", laser1.getRange());
         SmartDashboard.putNumber("laser2", laser2.getRange());
         SmartDashboard.putNumber("laserS", laserS.getRange());
-        if(j2.getRawButton(1) || shoot)
-        {
-            fireCells(d);
+        SmartDashboard.putNumber("encoder", intakeDep.getSelectedSensorPosition(0) / UNITS_PER_REV);
+        if(j2.getRawAxis(LogitechJoy.LEFT_TRIGGER) > LogitechJoy.TRIGGER_THRESH)
+        {  
+            hood.setAngle(HOOD_UP);
+            hoodDown = false;
+            if(hoodSet)
+            {
+                hoodSet = false;
+                t.schedule(new TimerTask(){
+                    @Override
+                    public void run()
+                    {
+                        shootable = true;
+                    }
+                }, (long) HOOD_UP_T);
+            }
         }
         else
         {
-            if(j2.getRawButton(LogitechJoy.BTN_RB))
+            hood.setAngle(SERVO_MIN);
+            if(!hoodDown)
             {
-                setCellIntakePos(INTAKE_DEPLOY_POS);
-                intake1.set(INTAKE_IN_SPD);
-                indexBalls();
+                hoodDown = true;
+                shootStage = 3;
             }
             else
             {
-                setCellIntakePos(INTAKE_RETRACT_POS);
+                shootStage = 0;
+            }
+            hoodSet = true;
+        }
+        if((j2.getRawButton(1) || shoot) && shootable)
+        {
+            fireCells(d, j2);
+        }
+        else
+        {
+            if(j2.getRawButton(LogitechJoy.BTN_RB) && !deployed2)
+            {
+                intake1.set(INTAKE_IN_SPD);
+                if(!deployed)
+                {
+                    deployed = true;
+                    deployed3 = true;
+                    t.schedule(new TimerTask(){
+                        @Override
+                        public void run()
+                        {
+                            deployed3 = false;
+                        }
+                    }, (long) ((double) DEPLOY_T));
+                    // * (double) intakeDep.getSelectedSensorPosition(0) / (double) UNITS_PER_REV / INTAKE_DEPLOY_POS));
+                }
+                if(deployed3)
+                {
+                    intakeDep.set(DEPLOY_SPEED);
+                }
+                else
+                {
+                    intakeDep.set(0);
+                }
+            }
+            else
+            {
+                if(deployed)
+                {
+                    deployed = false;
+                    deployed2 = true;
+                    t.schedule(new TimerTask(){
+                        @Override
+                        public void run()
+                        {
+                            deployed2 = false;
+                            intakeDep.setSelectedSensorPosition(0);
+                        }
+                    }, (long) ((double) RETRACT_T));
+                    //  * (double) intakeDep.getSelectedSensorPosition(0) / (double) UNITS_PER_REV / INTAKE_DEPLOY_POS));
+                }
+                if(deployed2)
+                {
+                    intakeDep.set(RETRACT_SPEED);
+                }
+                else
+                {
+                    intakeDep.set(0);
+                }
+                // else
+                // {
+                //     setCellIntakePos(0);
+                // }
             }
             if(j2.getRawAxis(LogitechJoy.LEFT_TRIGGER) > LogitechJoy.TRIGGER_THRESH)
             {
@@ -292,6 +383,10 @@ public class Operations {
             {
                 intake1.set(INTAKE_OUT_SPD);
                 intake2.set(INTAKE_OUT_SPD);
+            }
+            else
+            {
+                indexBalls(j2);
             }
 
             // if(j2.getRawButton(LogitechJoy.BTN_B))
@@ -318,18 +413,20 @@ public class Operations {
             {
                 intake2.set(0);
             }
-            if(!j2.getRawButton(LogitechJoy.BTN_RB) && !j2.getRawButton(LogitechJoy.BTN_B))
+            if(!j2.getRawButton(LogitechJoy.BTN_RB) && !j2.getRawButton(LogitechJoy.BTN_B) && !indexing)
             {
                 intake1.set(0);
             }
-            if(j2.getRawButton(LogitechJoy.BTN_Y) || sensing)
-            {
-                spinToColor();
-            }
-            else if(j2.getRawButton(LogitechJoy.BTN_X) || spinning)
-            {
-                spinWheel();
-            }
+
+            // Code for color wheel. Currently unused, since the color wheel appartus has been removed.
+            // if(j2.getRawButton(LogitechJoy.BTN_Y) || sensing)
+            // {
+            //     spinToColor();
+            // }
+            // else if(j2.getRawButton(LogitechJoy.BTN_X) || spinning)
+            // {
+            //     spinWheel();
+            // }
             climb(j1);
         }
         healthCheck();
@@ -363,17 +460,22 @@ public class Operations {
     //     }
     // }
 
-    private void indexBalls()
+    private void indexBalls(Joystick j2)
     {
         if(laserS.getRange() >= EMPTY)
         {
             if(laser1.getRange() < EMPTY * EMPTY_B_COEF)
             {
                 indexing = true;
+                intake1.set(INTAKE_IN_SPD);
                 intake2.set(INTAKE_IN_SPD);
             }
             else
             {
+                if(!j2.getRawButton(LogitechJoy.BTN_RB))
+                {
+                    intake1.set(0);
+                }
                 intake2.set(0);
                 indexing = false;
             }
@@ -391,36 +493,44 @@ public class Operations {
 
     private void healthCheck() {}
 
-    private void fireCells(DriveSystem d) {
+    private void fireCells(DriveSystem d, Joystick j2) {
         shoot = true;
         switch(shootStage)
         {
             case 0:
-                hood.setAngle(HOOD_UP);
+                // hood.setAngle(HOOD_UP);
                 shooter.set(SHOOTER_SPD);
                 intake1.set(0);
                 intake2.set(0);
-                if(hoodSet)
+                SmartDashboard.putNumber("rpm of shooter", shooter.getSelectedSensorVelocity() / UNITS_PER_REV * 600);
+                if((double) shooter.getSelectedSensorVelocity() / (double) UNITS_PER_REV * 600.0 >= SPIN_UP)
                 {
-                    hoodSet = false;
-                    t.schedule(new TimerTask(){
-                        @Override
-                        public void run()
-                        {
-                            shootStage++;
-                        }
-                        }, (long) HOOD_UP_T);
+                    shootStage++;
                 }
+
+                //This line was added solely for the purpose of fixing the servo mishap at Kettering
+                // shootStage++;
+
+                // if(hoodSet)
+                // {
+                //     hoodSet = false;
+                //     t.schedule(new TimerTask(){
+                //         @Override
+                //         public void run()
+                //         {
+                //             shootStage++;
+                //         }
+                //         }, (long) HOOD_UP_T);
+                // }
                 break;
-            case 2:
+            case 1:
                 if(emptyCycles >= EMPTY_T)
                 {
                     emptyCycles = 0;
                     shootStage++;
                     return;
                 }
-                shooter.set(SHOOTER_SPD);
-                intake1.set(INTAKE_IN_SPD);
+                intake1.set(INTAKE_IN_SPD * INTAKE1_COEF);
                 intake2.set(INTAKE_IN_SPD);
                 if(laser1.getRange() >= EMPTY && laser2.getRange() >= EMPTY && laserS.getRange() >= EMPTY)
                 {
@@ -445,14 +555,20 @@ public class Operations {
                 // }
                 break;
             default:
-                hood.setAngle(0);
+                // hood.setAngle(0);
                 shooter.set(0);
                 intake1.set(0);
                 intake2.set(0);
-                hoodSet = true;
+                // hoodSet = true;
+                t.cancel();
+                t = new Timer();
                 beltsSet = true;
                 shootStage = 0;
                 shoot = false;
+                if(j2.getRawAxis(LogitechJoy.LEFT_TRIGGER) <= LogitechJoy.TRIGGER_THRESH)
+                {
+                    shootable = false;
+                }
         }
     }
 
@@ -540,6 +656,7 @@ public class Operations {
         } 
         else if(j.getRawButton(LogitechJoy.BTN_RB) && !extendLimitSwitch.get()) 
         {
+            setCellIntakePos(INTAKE_DEPLOY_POS);
             if(winchCycles > 0)
             {
                 winch.set(-WINCH_DOWN_SPD);
@@ -574,12 +691,12 @@ public class Operations {
         if(intakeDepCurrentPos > targetPos + INTAKE_POS_TOLERANCE)
         {
             /* Check if over tolerance */
-            intakeDep.set(-0.3);
+            intakeDep.set(RETRACT_SPEED);
         } 
         else if(intakeDepCurrentPos < targetPos - INTAKE_POS_TOLERANCE)
         {
             /* Check if under tolerance */
-            intakeDep.set(0.2);
+            intakeDep.set(DEPLOY_SPEED);
         }
         else
         {
